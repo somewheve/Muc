@@ -33,16 +33,41 @@ class NeteaseEncrypt(object):
     def createSecretKey(self, size):
         return (''.join(map(lambda xx: (hex(ord(xx))[2:]), str(os.urandom(size)))))[0:16]
 
-    def generate_requests_info(self, i, offset, username="",password=""):
+    def generate_requests_info(self, **kwargs):
         text_dict = {
-            "username": username,
-            "password": password,
-            "remenberLogin": "true",
-            "offset": i * offset
+            "username": "",
+            "password": "",
+            "remenberLogin": "true"
         }
+
+        if "i" and "offset" in kwargs.keys():
+            offset = kwargs['offset']
+            i = kwargs['i']
+            text_dict["offset"] = i* offset
+        if "user_id" in kwargs.keys():
+            text_dict['user_id'] = kwargs['user_id']
+        if "type" in kwargs.keys():
+            text_dict["type"] = kwargs['type']
+        if "key" in kwargs.keys():
+            text_dict['s'] = kwargs['key']
+        if "limit" in kwargs.keys():
+            text_dict['limit'] = kwargs['limit']
+        if "total" in kwargs.keys():
+            text_dict['total'] = kwargs['total']
+        if "album_id" in kwargs.keys():
+            text_dict["album_id"] = kwargs['album_id']
+        if "id" in kwargs.keys():
+            text_dict['id'] = kwargs["id"]
+        if "c" in kwargs.keys():
+            text_dict['c'] = kwargs["c"]
+        if "br" in kwargs.keys():
+            text_dict['br'] = kwargs['br']
+        if "uid" in kwargs.keys():
+            text_dict['uid'] = kwargs['uid']
+
         text = json.dumps(text_dict)
         secKey = self.createSecretKey(16)
-        encText = self.aesEncrypt(text, self.nonce, secKey)
+        encText = self.aesEncrypt(self.aesEncrypt(text,self.nonce), secKey)
         encSecKey = self.rsaEncrypt(secKey, self.pubKey, self.modulus)
         payload = {'params': encText, 'encSecKey': encSecKey}
         return self.generate_header(), payload
