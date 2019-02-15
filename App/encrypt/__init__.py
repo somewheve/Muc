@@ -11,6 +11,10 @@ class NeteaseEncrypt(object):
     pubKey = '010001'
 
     def generate_header(self):
+        """
+        you can add headers in here
+        :return: dict
+        """
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36'}
         return headers

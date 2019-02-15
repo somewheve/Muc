@@ -1,3 +1,4 @@
+# coding: utf-8
 from App import RequestInfo
 
 if __name__ == '__main__':

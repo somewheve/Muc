@@ -1,7 +1,10 @@
+# coding:utf-8
 import requests
+from concurrent import futures
 from App.requests_info.url import *
 from App.encrypt import netease_encryptor
-from concurrent import futures
+from functools import wraps
+from pprint import pprint
 
 class Request(object):
     def __init__(self):
@@ -48,10 +51,12 @@ class RequestInfo(Request):
         self.playlist_id = []
         self.song_id = []
         self.MAX_WORKERS = 20
+        self.user_id = None
+        self.check_map = {"song": self.song_id, "playlist": self.playlist_id, "username": self.username}
 
     @property
-    def user_id(self):
-        return self.user_ids
+    def userid(self):
+        return self.user_id
 
     @property
     def comments(self):
@@ -81,65 +86,76 @@ class RequestInfo(Request):
         """IF exists username-comment group then add it to the match_data """
         for comment in data:
             if comment['user']['nickname'] == self.username:
-                print("匹配成功， 结果为:", comment["content"] )
+                pprint("match successful， result:", comment["content"])
                 self.match_data[data['song_name']] = comment["content"]
                 flag = True
 
+    # it should be example method , not classmethod
+    def check(self, func=None, **kwargs):
+        type = kwargs['type']
+        if type not in self.check_map.keys():
+            raise Exception("error decoration")
 
+        destionation = self.check_map[type]
+        if len(destionation) != 0 or destionation is not None:
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                return func(*args, **kwargs)
+
+            return wrapper
+        raise Exception("error in invoking,please check {} is Empty or length = 0".format(type))
+
+    @check(type="username")
     def request_user_id(self):
         headers, payload = netease_encryptor.generate_requests_info(key=self.username, type=1002)
         catch_data = requests.post(USER_ID_URL, headers=headers, data=payload).json()
-        self.user_ids = self._parse_user_id(data=catch_data)
+        self.user_id = self._parse_user_id(data=catch_data)
 
+    @check(type="userid")
     def request_user_playlist(self):
         """get all playlist id and add all of them into self.playlist_id """
         headers, payload = netease_encryptor.generate_requests_info(uid=self.user_id, limit=100, offset=1, i=1)
         catch_data = requests.post(url=PLAYLIST_URL, headers=headers, data=payload).json()
         self.playlist_id = self._parse_playlist_id(data=catch_data)
 
+    @check(type="playlist")
     def request_user_songs_list(self):
         """
         get all song id and add all of them into self.song_id
         """
+
         def post_data(id):
             headers, payload = netease_encryptor.generate_requests_info(id=id)
             catch_data = requests.post(SONG_ID_URL, headers=headers, data=payload).json()
             self._parse_song_id(data=catch_data)
-        if len(self.playlist_id) == 0:
-            raise Exception("用户歌单数等于0")
+
         workers = min(self.MAX_WORKERS, len(self.playlist_id))
         with futures.ThreadPoolExecutor(workers) as executor:
             executor.map(post_data, self.playlist_id)
 
-
+    @check(type="song")
     def request_user_comments(self):
         def post_data(i, single):
-            """获取单页数据"""
-            headers, payload = netease_encryptor.generate_requests_info(i=int(i),offset=10)
-            catch_data = requests.post(COMMENTS_URL+single + "?crsf=", headers=headers, data=payload).json()
+            """get simple page data"""
+            headers, payload = netease_encryptor.generate_requests_info(i=int(i), offset=10)
+            catch_data = requests.post(COMMENTS_URL + single + "?crsf=", headers=headers, data=payload).json()
             if "msg" in catch_data.keys() and catch_data['msg'] == 'Cheating':
-                    raise Exception("ip封杀")
+                raise Exception("ip has been forbidden")
             self._parse_comments_id(data=catch_data['comments'])
-
 
         def get_comment_numbers(single):
             headers, payload = netease_encryptor.generate_requests_info(i=1, offset=20)
-            catch_data = requests.post(COMMENTS_URL+single+"?crsf=", headers=headers, data=payload).json()
+            catch_data = requests.post(COMMENTS_URL + single + "?crsf=", headers=headers, data=payload).json()
             return int(catch_data['total'])
 
-
         for single in self.song_id:
-            # 请求第一次 数据  获取评论总量
+            # get the count of all comments
             single = str(single)
             all_number = get_comment_numbers(single=single)
             pages = all_number / 10
-            print("当前页数:",pages, "当前歌曲id", single)
-            page = [i for i in range(int(pages-1))]
-            single_list = [single]*int(pages-1)
+            page = [i for i in range(int(pages - 1))]
+            single_list = [single] * int(pages - 1)
+            print(len(page), "-", len(single_list))
             workers = min(self.MAX_WORKERS, pages)
             with futures.ThreadPoolExecutor(workers) as executor:
                 res = executor.map(post_data, page, single_list)
-
-
-
-
