@@ -1,8 +1,9 @@
 import json
 import os
-from Crypto.Cipher import AES
 import base64
 import codecs
+
+from Crypto.Cipher import AES
 
 
 class NeteaseEncrypt(object):
@@ -47,7 +48,7 @@ class NeteaseEncrypt(object):
         if "i" and "offset" in kwargs.keys():
             offset = kwargs['offset']
             i = kwargs['i']
-            text_dict["offset"] = i* offset
+            text_dict["offset"] = i * offset
         if "user_id" in kwargs.keys():
             text_dict['user_id'] = kwargs['user_id']
         if "type" in kwargs.keys():
@@ -71,7 +72,7 @@ class NeteaseEncrypt(object):
 
         text = json.dumps(text_dict)
         secKey = self.createSecretKey(16)
-        encText = self.aesEncrypt(self.aesEncrypt(text,self.nonce), secKey)
+        encText = self.aesEncrypt(self.aesEncrypt(text, self.nonce), secKey)
         encSecKey = self.rsaEncrypt(secKey, self.pubKey, self.modulus)
         payload = {'params': encText, 'encSecKey': encSecKey}
         return self.generate_header(), payload

@@ -1,7 +1,7 @@
 # cmusic
 An program which used to get user's comments in netease music 
 
-## Usage
+# Usage
  
 ### Import the module
 ```python
@@ -41,6 +41,6 @@ print(info.comments)
 * Make speed faster 
 
 
-# Last
+# IN THE END
 Happy for your star ^_^ or contribute your code
 

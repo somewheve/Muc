@@ -1,10 +1,13 @@
 # coding:utf-8
-import requests
 from concurrent import futures
+from pprint import pprint
+from functools import wraps
+
+import requests
+
 from App.requests_info.url import *
 from App.encrypt import netease_encryptor
-from functools import wraps
-from pprint import pprint
+
 
 class Request(object):
     def __init__(self):
