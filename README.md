@@ -2,7 +2,11 @@
 An program which used to get user's comments in netease music 
 
 # Usage
- 
+### Install the libraries 
+```bash
+pip install -r requirements.txt
+```
+
 ### Import the module
 ```python
 from App import RequestInfo
