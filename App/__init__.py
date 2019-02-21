@@ -2,12 +2,25 @@
 from concurrent import futures
 from pprint import pprint
 from functools import wraps
-
+import asyncio
 import requests
 
 from App.requests_info.url import *
 from App.encrypt import netease_encryptor
 
+
+#
+# def check(func=None, **kwargs):
+#     # type = kwargs['type']
+#     # if type not in self.check_map.keys():
+#     #     raise Exception("error decoration")
+#     #
+#     # destionation = self.check_map[type]
+#     # if len(destionation) != 0 or destionation is not None:
+#     @wraps(func)
+#     def wrapper(*args, **kwargs):
+#         return func(*args, **kwargs)
+#     return wrapper
 
 class Request(object):
     def __init__(self):
@@ -94,34 +107,27 @@ class RequestInfo(Request):
                 flag = True
 
     # it should be example method , not classmethod
-    def check(self, func=None, **kwargs):
-        type = kwargs['type']
-        if type not in self.check_map.keys():
-            raise Exception("error decoration")
 
-        destionation = self.check_map[type]
-        if len(destionation) != 0 or destionation is not None:
-            @wraps(func)
-            def wrapper(*args, **kwargs):
-                return func(*args, **kwargs)
+    # raise Exception("error in invoking,please check {} is Empty or length = 0".format(type))
 
-            return wrapper
-        raise Exception("error in invoking,please check {} is Empty or length = 0".format(type))
-
-    @check(type="username")
+    # @check(type="username")
     def request_user_id(self):
-        headers, payload = netease_encryptor.generate_requests_info(key=self.username, type=1002)
+        from time import time
+        old = time()
+        headers, payload = netease_encryptor.generate_requests_info(s=self.username, type=1002)
+        new = time()
+        print("emm: ", new - old)
         catch_data = requests.post(USER_ID_URL, headers=headers, data=payload).json()
         self.user_id = self._parse_user_id(data=catch_data)
 
-    @check(type="userid")
+    # @check(type="userid")
     def request_user_playlist(self):
         """get all playlist id and add all of them into self.playlist_id """
         headers, payload = netease_encryptor.generate_requests_info(uid=self.user_id, limit=100, offset=1, i=1)
         catch_data = requests.post(url=PLAYLIST_URL, headers=headers, data=payload).json()
         self.playlist_id = self._parse_playlist_id(data=catch_data)
 
-    @check(type="playlist")
+    # @check(type="playlist")
     def request_user_songs_list(self):
         """
         get all song id and add all of them into self.song_id
@@ -136,29 +142,41 @@ class RequestInfo(Request):
         with futures.ThreadPoolExecutor(workers) as executor:
             executor.map(post_data, self.playlist_id)
 
-    @check(type="song")
+    # @check(type="song")
     def request_user_comments(self):
-        def post_data(i, single):
-            """get simple page data"""
-            headers, payload = netease_encryptor.generate_requests_info(i=int(i), offset=10)
-            catch_data = requests.post(COMMENTS_URL + single + "?crsf=", headers=headers, data=payload).json()
-            if "msg" in catch_data.keys() and catch_data['msg'] == 'Cheating':
-                raise Exception("ip has been forbidden")
-            self._parse_comments_id(data=catch_data['comments'])
 
+        async def post_data(i):
+            """get simple page data"""
+            try:
+                headers, payload = netease_encryptor.generate_requests_info(offset=i * 10)
+                catch_data = requests.post(COMMENTS_URL + single + "?crsf=", headers=headers, data=payload).json()
+                if "msg" in catch_data.keys() and catch_data['msg'] == 'Cheating':
+                    raise Exception("ip has been forbidden")
+                self._parse_comments_id(data=catch_data['comments'])
+                return "ok"
+            except Exception as e:
+                return "bad"
         def get_comment_numbers(single):
+            """get comment number"""
             headers, payload = netease_encryptor.generate_requests_info(i=1, offset=20)
             catch_data = requests.post(COMMENTS_URL + single + "?crsf=", headers=headers, data=payload).json()
             return int(catch_data['total'])
 
+        def callback(future):
+            print(future.result())
+
         for single in self.song_id:
             # get the count of all comments
+            tasks = []
             single = str(single)
+            event_loop = asyncio.get_event_loop()
             all_number = get_comment_numbers(single=single)
+            print("待抓取评论数目", all_number)
             pages = all_number / 10
             page = [i for i in range(int(pages - 1))]
-            single_list = [single] * int(pages - 1)
-            print(len(page), "-", len(single_list))
-            workers = min(self.MAX_WORKERS, pages)
-            with futures.ThreadPoolExecutor(workers) as executor:
-                res = executor.map(post_data, page, single_list)
+            for x in page:
+                task = asyncio.ensure_future(post_data(x))
+                task.add_done_callback(callback)
+                tasks.append(task)
+            print("创建任务, 开始执行")
+            event_loop.run_until_complete(asyncio.wait(tasks))
